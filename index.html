@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Desempeño - TalentMetrics</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Iconos (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .drop-zone { border: 2px dashed #cbd5e1; transition: all 0.3s ease; }
+        .drop-zone.dragover { border-color: #4f46e5; background-color: #eef2ff; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Navegación -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-600 p-2 rounded-lg">
+                        <i data-lucide="bar-chart-2" class="text-white w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <span class="font-bold text-xl tracking-tight text-slate-900 block leading-none">Overall Metrics</span>
+                        <span class="text-xs text-slate-500 font-medium">Análisis de Reclutamiento - Equipo de Datos</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenido Principal -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        
+        <!-- Sección de Carga -->
+        <section id="uploadSection" class="mb-8">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 md:p-12 text-center drop-zone cursor-pointer group" id="dropZone">
+                <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv">
+                <div class="flex flex-col items-center justify-center gap-4">
+                    <div class="bg-indigo-50 p-5 rounded-full group-hover:bg-indigo-100 transition-colors">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 text-indigo-600"></i>
+                    </div>
+                    <div class="max-w-md mx-auto">
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">Cargar Evaluación</h3>
+                        <p class="text-slate-500 mb-6 text-sm">Arrastra el archivo Excel para visualizar los indicadores.</p>
+                        <button class="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition font-medium shadow-lg shadow-indigo-200 text-sm">
+                            Seleccionar Archivo
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="errorMessage" class="hidden mt-4 p-4 bg-red-50 text-red-700 rounded-xl text-sm text-center border border-red-100 font-medium"></div>
+        </section>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="hidden space-y-6">
+            
+            <!-- Filtros -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center gap-2 mb-4 text-slate-800 font-semibold border-b border-slate-100 pb-2">
+                    <i data-lucide="filter" class="w-4 h-4 text-indigo-600"></i>
+                    <span class="text-sm">Filtros de Análisis</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Filtro Reclutador (Nombre) -->
+                    <div class="space-y-1">
+                        <label for="filterName" class="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Reclutador</label>
+                        <select id="filterName" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 truncate">
+                            <option value="all">Todos los Reclutadores</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Cargo -->
+                    <div class="space-y-1">
+                        <label for="filterCargo" class="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Cargo</label>
+                        <select id="filterCargo" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 truncate">
+                            <option value="all">Todos los Cargos</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Periodo -->
+                    <div class="space-y-1">
+                        <label for="filterPeriodo" class="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Periodo</label>
+                        <select id="filterPeriodo" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 truncate">
+                            <option value="all">Todos los Periodos</option>
+                        </select>
+                    </div>
+
+                    <!-- Botón Reset -->
+                    <div class="flex items-end">
+                        <button id="resetFilters" class="w-full py-2.5 px-4 bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Limpiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs Principales -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- KPI Total -->
+                <div class="card bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="p-2 bg-indigo-50 rounded-lg">
+                            <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-full">TOTAL</span>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-900" id="kpiTotalUsers">0</h3>
+                        <p class="text-xs font-medium text-slate-500">Evaluaciones</p>
+                    </div>
+                </div>
+
+                <!-- KPI Promedio -->
+                <div class="card bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="p-2 bg-emerald-50 rounded-lg">
+                            <i data-lucide="activity" class="w-5 h-5 text-emerald-600"></i>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full" id="kpiTopTalentPct">0% TOP</span>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-900 truncate" id="kpiAvgScore">-</h3>
+                        <p class="text-xs font-medium text-slate-500">Nivel Promedio</p>
+                    </div>
+                </div>
+
+                <!-- KPI Compromiso -->
+                <div class="card bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="p-2 bg-blue-50 rounded-lg">
+                            <i data-lucide="check-circle-2" class="w-5 h-5 text-blue-600"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-bold text-slate-900" id="kpiCommitment">0%</h3>
+                        <p class="text-xs font-medium text-slate-500">Cumplimiento Compromisos</p>
+                    </div>
+                </div>
+
+                <!-- KPI Mejor Competencia -->
+                <div class="card bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="p-2 bg-amber-50 rounded-lg">
+                            <i data-lucide="star" class="w-5 h-5 text-amber-600"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900 leading-tight line-clamp-2 text-ellipsis overflow-hidden" id="kpiTopSkill">-</h3>
+                        <p class="text-xs font-medium text-slate-500 mt-1">Mejor Competencia</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráfico de Tendencia (NUEVO) -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h4 class="text-lg font-bold text-slate-900">Evolución de Desempeño</h4>
+                        <p class="text-sm text-slate-500">Tendencia del puntaje promedio por periodo</p>
+                    </div>
+                    <div class="p-2 bg-slate-50 rounded-lg">
+                        <i data-lucide="trending-up" class="w-5 h-5 text-slate-400"></i>
+                    </div>
+                </div>
+                <div class="h-64 w-full relative">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráficos Secundarios -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Competencias -->
+                <div class="card bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h4 class="text-lg font-bold text-slate-900 mb-4">Análisis de Competencias</h4>
+                    <div class="h-72 w-full relative">
+                        <canvas id="competencyChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Compromisos -->
+                <div class="card bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h4 class="text-lg font-bold text-slate-900 mb-4">Estado de Compromisos</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                        <div class="h-56 relative flex justify-center">
+                            <canvas id="commitmentChart"></canvas>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-100">
+                                <span class="text-sm font-medium text-green-800">Cumplido</span>
+                                <span class="text-xl font-bold text-green-700" id="statSi">0</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
+                                <span class="text-sm font-medium text-amber-800">Parcial</span>
+                                <span class="text-xl font-bold text-amber-700" id="statParcial">0</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
+                                <span class="text-sm font-medium text-red-800">No Cumplido</span>
+                                <span class="text-xl font-bold text-red-700" id="statNo">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+             <!-- Tabla Detallada -->
+             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+                    <h4 class="font-bold text-slate-900">Detalle de Reclutadores</h4>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-sm text-left text-slate-500">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-50 font-semibold tracking-wider">
+                            <tr>
+                                <th class="px-6 py-4 min-w-[200px]">Reclutador</th> <!-- Columna principal -->
+                                <th class="px-6 py-4 min-w-[150px]">Cargo</th>
+                                <th class="px-6 py-4 min-w-[100px]">Periodo</th>
+                                <th class="px-6 py-4 text-center min-w-[100px]">Promedio</th>
+                                <th class="px-6 py-4 text-center min-w-[120px]">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody" class="divide-y divide-slate-100">
+                            <!-- JS insertará datos aquí -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Lógica del Dashboard -->
+    <script>
+        lucide.createIcons();
+
+        // Estado Global
+        let rawData = [];
+        let charts = {
+            competency: null,
+            commitment: null,
+            trend: null
+        };
+
+        // Configuración
+        const SCORE_MAP = {
+            "Supera": 4,
+            "Cumple": 3,
+            "En desarrollo": 2,
+            "Requiere soporte": 1
+        };
+
+        const KNOWN_COMPETENCIES = [
+            "Comunicación", "Aprendizaje", "Orientación a resultados", 
+            "Autonomia", "Resolución de problemas", "Negociación", 
+            "Liderazgo", "Gestión de equipo", "Visión estratégica"
+        ];
+
+        // Elementos UI
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const dashboard = document.getElementById('dashboard');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // Filtros UI
+        const filterName = document.getElementById('filterName'); // Reclutador
+        const filterPeriodo = document.getElementById('filterPeriodo');
+        const filterCargo = document.getElementById('filterCargo');
+        const btnReset = document.getElementById('resetFilters');
+
+        // Drag & Drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        // 1. Procesar Archivo
+        function handleFile(file) {
+            errorMessage.classList.add('hidden');
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    let sheetName = workbook.SheetNames.find(name => name.includes("Evaluación")) || workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const jsonArray = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    
+                    // Buscar fila de encabezado (donde dice "Nombre")
+                    let headerRowIndex = jsonArray.findIndex(row => 
+                        row && row.some(cell => cell && cell.toString().trim().toLowerCase() === "nombre")
+                    );
+
+                    if (headerRowIndex === -1) throw new Error("No se encontró la fila 'Nombre' en el Excel.");
+
+                    // Leer datos desde el encabezado
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
+                    
+                    // Limpiar claves
+                    rawData = jsonData.filter(row => row.Nombre).map(row => {
+                        const newRow = {};
+                        Object.keys(row).forEach(key => {
+                            newRow[key.trim()] = row[key];
+                        });
+                        return newRow;
+                    });
+
+                    initializeDashboard();
+                } catch (err) {
+                    console.error(err);
+                    errorMessage.textContent = "Error: " + err.message;
+                    errorMessage.classList.remove('hidden');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 2. Inicializar
+        function initializeDashboard() {
+            // Poblar Filtros
+            const names = [...new Set(rawData.map(d => d.Nombre).filter(Boolean))].sort();
+            const periods = [...new Set(rawData.map(d => d.Periodo).filter(Boolean))].sort();
+            const cargos = [...new Set(rawData.map(d => d.Cargo).filter(Boolean))].sort();
+
+            populateSelect(filterName, names);
+            populateSelect(filterPeriodo, periods);
+            populateSelect(filterCargo, cargos);
+
+            // Mostrar UI
+            document.getElementById('uploadSection').classList.add('hidden');
+            dropZone.innerHTML = `<span class="text-green-600 font-bold">Archivo cargado correctamente</span>`;
+            dashboard.classList.remove('hidden');
+            
+            updateDashboard();
+        }
+
+        function populateSelect(select, items) {
+            select.innerHTML = `<option value="all">Todos</option>`;
+            items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item;
+                option.textContent = item;
+                select.appendChild(option);
+            });
+        }
+
+        // Listeners
+        filterName.addEventListener('change', updateDashboard);
+        filterPeriodo.addEventListener('change', updateDashboard);
+        filterCargo.addEventListener('change', updateDashboard);
+        btnReset.addEventListener('click', () => {
+            filterName.value = 'all';
+            filterPeriodo.value = 'all';
+            filterCargo.value = 'all';
+            updateDashboard();
+        });
+
+        // 3. Actualizar Dashboard
+        function updateDashboard() {
+            const sName = filterName.value;
+            const sPeriodo = filterPeriodo.value;
+            const sCargo = filterCargo.value;
+
+            const filteredData = rawData.filter(row => {
+                return (sName === 'all' || row.Nombre === sName) &&
+                       (sPeriodo === 'all' || row.Periodo === sPeriodo) &&
+                       (sCargo === 'all' || row.Cargo === sCargo);
+            });
+
+            calculateKPIs(filteredData);
+            renderCharts(filteredData);
+            renderTrendChart(rawData, sName, sCargo); // Pasamos rawData para calcular tendencias completas si es necesario
+            renderTable(filteredData);
+        }
+
+        // 4. Calcular KPIs
+        function calculateKPIs(data) {
+            document.getElementById('kpiTotalUsers').textContent = data.length;
+
+            if (data.length === 0) {
+                resetKPIs();
+                return;
+            }
+
+            // Compromiso
+            const totalComp = data.filter(r => r["Cumplimiento del compromiso"]).length;
+            const okComp = data.filter(r => (r["Cumplimiento del compromiso"]||"").toString().toLowerCase().includes("si")).length;
+            const pct = totalComp ? Math.round((okComp/totalComp)*100) : 0;
+            document.getElementById('kpiCommitment').textContent = `${pct}%`;
+
+            // Promedios y Skill Top
+            let globalSum = 0, globalCount = 0;
+            let skills = {};
+            let highPerf = 0;
+
+            data.forEach(row => {
+                let rowSum = 0, rowCount = 0;
+                Object.keys(row).forEach(k => {
+                    if (SCORE_MAP[row[k]]) {
+                        const val = SCORE_MAP[row[k]];
+                        globalSum += val; globalCount++;
+                        rowSum += val; rowCount++;
+                        if (!skills[k]) skills[k] = {sum:0, count:0};
+                        skills[k].sum += val; skills[k].count++;
+                    }
+                });
+                if (rowCount && (rowSum/rowCount) >= 3.5) highPerf++;
+            });
+
+            const globalAvg = globalCount ? (globalSum/globalCount) : 0;
+            document.getElementById('kpiAvgScore').textContent = getScoreLabel(globalAvg);
+            document.getElementById('kpiTopTalentPct').textContent = `${Math.round((highPerf/data.length)*100)}% TOP`;
+
+            // Mejor Skill
+            let bestSkill = "-", bestVal = -1;
+            Object.keys(skills).forEach(k => {
+                const avg = skills[k].sum / skills[k].count;
+                if (avg > bestVal) { bestVal = avg; bestSkill = k; }
+            });
+            document.getElementById('kpiTopSkill').textContent = bestSkill;
+        }
+
+        function resetKPIs() {
+            document.getElementById('kpiAvgScore').textContent = "-";
+            document.getElementById('kpiCommitment').textContent = "0%";
+            document.getElementById('kpiTopSkill').textContent = "-";
+            document.getElementById('kpiTopTalentPct').textContent = "0% TOP";
+        }
+
+        function getScoreLabel(score) {
+            if (score >= 3.5) return "Sobresaliente";
+            if (score >= 2.5) return "Cumple";
+            if (score >= 1.5) return "En Desarrollo";
+            return "Requiere Apoyo";
+        }
+
+        // 5. Renderizar Gráficos Principales
+        function renderCharts(data) {
+            // Competencias (Barras)
+            const compCtx = document.getElementById('competencyChart');
+            let compStats = {};
+            
+            // Detectar competencias
+            const allKeys = Object.keys(data[0]||{});
+            const validComps = [...new Set(allKeys.filter(k => 
+                (KNOWN_COMPETENCIES.includes(k) || data.some(r => SCORE_MAP[r[k]])) &&
+                !["Periodo","Cargo","Nombre","Evaluador","Cumplimiento del compromiso"].includes(k)
+            ))];
+
+            validComps.forEach(c => compStats[c] = {sum:0, count:0});
+            data.forEach(r => {
+                validComps.forEach(c => {
+                    if(SCORE_MAP[r[c]]) { compStats[c].sum += SCORE_MAP[r[c]]; compStats[c].count++; }
+                });
+            });
+
+            const labels = validComps;
+            const values = labels.map(l => compStats[l].count ? (compStats[l].sum/compStats[l].count).toFixed(2) : 0);
+
+            if (charts.competency) charts.competency.destroy();
+            charts.competency = new Chart(compCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Puntaje',
+                        data: values,
+                        backgroundColor: '#4f46e5',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: {display:false} },
+                    scales: { y: {max: 4, beginAtZero: true}, x: {ticks:{autoSkip:false, maxRotation:45, minRotation:0}} }
+                }
+            });
+
+            // Compromisos (Dona)
+            let si=0, parcial=0, no=0;
+            data.forEach(r => {
+                const v = (r["Cumplimiento del compromiso"]||"").toLowerCase();
+                if(v.includes("si")) si++;
+                else if(v.includes("parcial")) parcial++;
+                else if(v.includes("no")) no++;
+            });
+
+            document.getElementById('statSi').textContent = si;
+            document.getElementById('statParcial').textContent = parcial;
+            document.getElementById('statNo').textContent = no;
+
+            if (charts.commitment) charts.commitment.destroy();
+            charts.commitment = new Chart(document.getElementById('commitmentChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Cumplido', 'Parcial', 'No'],
+                    datasets: [{
+                        data: [si, parcial, no],
+                        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: { legend: {display: false} }
+                }
+            });
+        }
+
+        // 6. Nuevo Gráfico de Tendencia
+        function renderTrendChart(allData, selectedName, selectedCargo) {
+            // Filtramos la data base según el contexto (si selecciono un Reclutador, veo SU tendencia)
+            // Si no selecciono a nadie, veo la tendencia GLOBAL.
+            
+            // Obtenemos los periodos únicos y ordenados
+            let periods = [...new Set(allData.map(d => d.Periodo).filter(Boolean))].sort();
+            
+            // Datos del gráfico
+            let trendData = [];
+
+            periods.forEach(p => {
+                // Filtramos data para este periodo
+                const periodRows = allData.filter(d => {
+                    const matchPeriod = d.Periodo === p;
+                    const matchName = selectedName === 'all' || d.Nombre === selectedName;
+                    const matchCargo = selectedCargo === 'all' || d.Cargo === selectedCargo;
+                    return matchPeriod && matchName && matchCargo;
+                });
+
+                // Calculamos promedio de este periodo
+                let sum = 0, count = 0;
+                periodRows.forEach(row => {
+                    Object.values(row).forEach(val => {
+                        if (SCORE_MAP[val]) { sum += SCORE_MAP[val]; count++; }
+                    });
+                });
+
+                trendData.push(count ? (sum/count).toFixed(2) : null);
+            });
+
+            const ctx = document.getElementById('trendChart');
+            if (charts.trend) charts.trend.destroy();
+
+            charts.trend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: periods,
+                    datasets: [{
+                        label: 'Desempeño Promedio',
+                        data: trendData,
+                        borderColor: '#6366f1', // Indigo 500
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#4338ca',
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        fill: true,
+                        tension: 0.3 // Curva suave
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true, 
+                            max: 4,
+                            grid: { borderDash: [5, 5] },
+                            ticks: { stepSize: 1 }
+                        },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Promedio: ${context.raw}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 7. Renderizar Tabla
+        function renderTable(data) {
+            const tbody = document.getElementById('dataTableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach(row => {
+                let sum=0, count=0;
+                Object.keys(row).forEach(k => { if(SCORE_MAP[row[k]]) { sum+=SCORE_MAP[row[k]]; count++; } });
+                const avg = count ? (sum/count).toFixed(1) : "-";
+
+                let badge = "bg-slate-100 text-slate-600";
+                let label = "N/A";
+                if(avg !== "-") {
+                    if(avg>=3.5) { badge="bg-emerald-100 text-emerald-700"; label="Excelente"; }
+                    else if(avg>=2.5) { badge="bg-blue-100 text-blue-700"; label="Bueno"; }
+                    else if(avg>=1.5) { badge="bg-amber-100 text-amber-700"; label="Regular"; }
+                    else { badge="bg-red-100 text-red-700"; label="Bajo"; }
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = "bg-white hover:bg-slate-50 transition-colors border-b border-slate-50";
+                tr.innerHTML = `
+                    <td class="px-6 py-4 font-bold text-slate-800 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                                ${(row.Nombre||"U").charAt(0)}
+                            </div>
+                            <span class="truncate max-w-[180px]" title="${row.Nombre}">${row.Nombre||"-"}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 truncate max-w-[150px]" title="${row.Cargo}">${row.Cargo||"-"}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs text-slate-500 bg-slate-50 rounded text-center">${row.Periodo||"-"}</td>
+                    <td class="px-6 py-4 text-center font-bold text-slate-700">${avg}</td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="${badge} text-xs font-semibold px-2.5 py-1 rounded-full border border-opacity-20">${label}</span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
